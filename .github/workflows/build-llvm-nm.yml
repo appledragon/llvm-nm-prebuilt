@@ -113,22 +113,6 @@ jobs:
           -DBUILD_SHARED_LIBS=OFF
         ninja llvm-nm
 
-    - name: Verify binary
-      run: |
-        echo "Verifying llvm-nm binary for macOS-${{ matrix.arch }}..."
-        
-        # Check file type
-        file build/bin/llvm-nm
-        
-        # Check library dependencies (shared libraries)
-        otool -L build/bin/llvm-nm
-        
-        # For arm64, check if it's properly built for Apple Silicon
-        if [ "${{ matrix.arch }}" == "arm64" ]; then
-          echo "Checking architecture details:"
-          lipo -info build/bin/llvm-nm
-        fi
-
     - name: Prepare artifact
       run: |
         mkdir -p llvm-nm-macos-${{ matrix.arch }}
@@ -177,29 +161,6 @@ jobs:
           -DLLVM_LINK_LLVM_DYLIB=OFF \
           -DBUILD_SHARED_LIBS=OFF
         ninja llvm-nm
-
-    - name: Verify binary
-      run: |
-        echo "Verifying llvm-nm binary for Linux-x86_64..."
-        
-        # Check file type
-        file build/bin/llvm-nm
-        
-        # Check for shared library dependencies
-        echo "Dynamic dependencies:"
-        ldd build/bin/llvm-nm
-        
-        # Check ELF details
-        echo "ELF header information:"
-        readelf -h build/bin/llvm-nm | head -n 20
-        
-        # Check if static or dynamic linked (look for dynamic section)
-        echo "Checking if statically linked:"
-        if readelf -d build/bin/llvm-nm | grep -q "NEEDED"; then
-          echo "Dynamically linked - found NEEDED entries"
-        else
-          echo "Likely statically linked - no NEEDED entries"
-        fi
 
     - name: Prepare artifact
       run: |
