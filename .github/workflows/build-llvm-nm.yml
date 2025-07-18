@@ -227,49 +227,51 @@ jobs:
           throw "Download failed - file not found"
         }
         
-        # Extract the archive with verbose output and timeout
+        # Extract the archive with simple method
         Write-Host "Starting extraction..."
-        $extractJob = Start-Job -ScriptBlock {
-          param($filePath)
-          Set-Location $using:PWD
-          tar -xvf $filePath
-        } -ArgumentList $output
-        
-        # Wait for extraction with timeout (10 minutes)
-        $timeout = 600
-        $completed = Wait-Job $extractJob -Timeout $timeout
-        
-        if ($completed) {
-          Receive-Job $extractJob
-          Write-Host "Extraction completed"
-        } else {
-          Write-Host "Extraction timed out after $timeout seconds"
-          Stop-Job $extractJob
-          Remove-Job $extractJob
-          throw "Extraction timeout"
+        try {
+          # Try using Windows built-in tar first
+          Write-Host "Using tar command..."
+          & tar -xf $output
+          Write-Host "Tar extraction completed"
+        } catch {
+          Write-Host "Tar failed, trying alternative extraction..."
+          # Fallback: try using 7zip if available
+          if (Get-Command 7z -ErrorAction SilentlyContinue) {
+            Write-Host "Using 7zip..."
+            & 7z x $output
+            & 7z x "llvm-project.tar"
+          } else {
+            throw "No suitable extraction tool found"
+          }
         }
         
-        Remove-Job $extractJob
-        
         # Check if extraction was successful
+        Write-Host "Checking extraction result..."
         if (Test-Path "llvm-project-20.1.8.src") {
           Write-Host "Extraction successful, renaming directory..."
+          if (Test-Path "llvm-project") {
+            Remove-Item "llvm-project" -Recurse -Force
+          }
           Rename-Item "llvm-project-20.1.8.src" "llvm-project"
           Write-Host "Directory renamed successfully"
         } else {
           Write-Host "Extraction failed - source directory not found"
-          Write-Host "Current directory contents:"
-          Get-ChildItem | Format-Table Name, Length
+          Write-Host "Available files and directories:"
+          Get-ChildItem | Format-Table Name, Length -AutoSize
           throw "Extraction failed"
         }
         
         # Verify final result
-        if (Test-Path "llvm-project") {
+        if (Test-Path "llvm-project\llvm") {
           Write-Host "LLVM source setup completed successfully"
-          Write-Host "LLVM project directory contents:"
-          Get-ChildItem llvm-project | Select-Object -First 10 | Format-Table Name
         } else {
-          throw "Final verification failed - llvm-project directory not found"
+          Write-Host "Final verification failed - llvm subdirectory not found"
+          if (Test-Path "llvm-project") {
+            Write-Host "llvm-project directory exists but llvm subdirectory missing"
+            Get-ChildItem llvm-project | Select-Object -First 5 | Format-Table Name -AutoSize
+          }
+          throw "Final verification failed"
         }
       shell: pwsh
 
