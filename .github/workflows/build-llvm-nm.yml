@@ -23,14 +23,11 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Clone LLVM repository at specific tag
+    - name: Download LLVM source code
       run: |
-        git clone --depth 1 --branch llvmorg-20.1.8 https://github.com/llvm/llvm-project.git
-        if [ ! -d "llvm-project/llvm" ]; then
-          echo "Clone failed - llvm subdirectory not found"
-          ls -la llvm-project
-          exit 1
-        fi
+        curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
+        tar -xf llvm-project.tar.xz
+        mv llvm-project-20.1.8.src llvm-project
 
     - name: Install Homebrew and dependencies (x86_64)
       if: matrix.arch == 'x86_64'
@@ -77,11 +74,6 @@ jobs:
         
         mkdir build
         cd build
-        
-        # Create a minimal CMake toolchain file to handle the libatomic issue
-        echo 'set(CMAKE_C_COMPILER_WORKS 1)' > toolchain.cmake
-        echo 'set(CMAKE_CXX_COMPILER_WORKS 1)' >> toolchain.cmake
-        
         arch -x86_64 /usr/local/bin/cmake -G Ninja ../llvm-project/llvm \
           -DLLVM_ENABLE_PROJECTS=llvm \
           -DLLVM_TOOL_LLVM_NM_BUILD=ON \
@@ -94,13 +86,7 @@ jobs:
           -DCMAKE_EXE_LINKER_FLAGS="-arch x86_64" \
           -DLLVM_ENABLE_ZSTD=OFF \
           -DLLVM_ENABLE_ZLIB=OFF \
-          -DLLVM_ENABLE_LIBXML2=OFF \
-          -DLLVM_BUILD_STATIC=ON \
-          -DLLVM_LINK_LLVM_DYLIB=OFF \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DLLVM_ENABLE_THREADS=OFF \
-          -DLLVM_ENABLE_TERMINFO=OFF \
-          -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake
+          -DLLVM_ENABLE_LIBXML2=OFF
         arch -x86_64 /usr/local/bin/ninja llvm-nm
 
     - name: Configure and build llvm-nm (arm64)
@@ -108,11 +94,6 @@ jobs:
       run: |
         mkdir build
         cd build
-        
-        # Create a minimal CMake toolchain file to handle the libatomic issue
-        echo 'set(CMAKE_C_COMPILER_WORKS 1)' > toolchain.cmake
-        echo 'set(CMAKE_CXX_COMPILER_WORKS 1)' >> toolchain.cmake
-        
         cmake -G Ninja ../llvm-project/llvm \
           -DLLVM_ENABLE_PROJECTS=llvm \
           -DLLVM_TOOL_LLVM_NM_BUILD=ON \
@@ -120,14 +101,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_OSX_ARCHITECTURES=arm64 \
           -DCMAKE_PREFIX_PATH="/opt/homebrew" \
-          -DZSTD_ROOT="/opt/homebrew" \
-          -DLLVM_BUILD_STATIC=ON \
-          -DLLVM_LINK_LLVM_DYLIB=OFF \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DLLVM_ENABLE_THREADS=OFF \
-          -DLLVM_ENABLE_TERMINFO=OFF \
-          -DLLVM_ENABLE_ZLIB=OFF \
-          -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake
+          -DZSTD_ROOT="/opt/homebrew"
         ninja llvm-nm
 
     - name: Prepare artifact
@@ -153,14 +127,11 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Clone LLVM repository at specific tag
+    - name: Download LLVM source code
       run: |
-        git clone --depth 1 --branch llvmorg-20.1.8 https://github.com/llvm/llvm-project.git
-        if [ ! -d "llvm-project/llvm" ]; then
-          echo "Clone failed - llvm subdirectory not found"
-          ls -la llvm-project
-          exit 1
-        fi
+        curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
+        tar -xf llvm-project.tar.xz
+        mv llvm-project-20.1.8.src llvm-project
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y cmake ninja-build build-essential libzstd-dev
@@ -169,23 +140,11 @@ jobs:
       run: |
         mkdir build
         cd build
-        
-        # Create a minimal CMake toolchain file to handle the libatomic issue
-        echo 'set(CMAKE_C_COMPILER_WORKS 1)' > toolchain.cmake
-        echo 'set(CMAKE_CXX_COMPILER_WORKS 1)' >> toolchain.cmake
-        
         cmake -G Ninja ../llvm-project/llvm \
           -DLLVM_ENABLE_PROJECTS=llvm \
           -DLLVM_TOOL_LLVM_NM_BUILD=ON \
           -DLLVM_TARGETS_TO_BUILD="X86" \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DLLVM_BUILD_STATIC=ON \
-          -DLLVM_LINK_LLVM_DYLIB=OFF \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DLLVM_ENABLE_THREADS=OFF \
-          -DLLVM_ENABLE_TERMINFO=OFF \
-          -DLLVM_ENABLE_ZLIB=OFF \
-          -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake
+          -DCMAKE_BUILD_TYPE=Release
         ninja llvm-nm
 
     - name: Prepare artifact
