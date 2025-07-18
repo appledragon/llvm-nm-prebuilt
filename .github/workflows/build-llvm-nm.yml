@@ -234,30 +234,34 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake -G "Ninja" ../llvm-project/llvm ^
-          -DLLVM_ENABLE_PROJECTS=llvm ^
-          -DLLVM_TOOL_LLVM_NM_BUILD=ON ^
-          -DLLVM_TARGETS_TO_BUILD=X86 ^
-          -DCMAKE_BUILD_TYPE=Release ^
-          -DLLVM_USE_CRT_RELEASE=MT ^
-          -DLLVM_BUILD_STATIC=ON ^
-          -DLLVM_LINK_LLVM_DYLIB=OFF ^
+        cmake -G "Ninja" ../llvm-project/llvm `
+          -DLLVM_ENABLE_PROJECTS=llvm `
+          -DLLVM_TOOL_LLVM_NM_BUILD=ON `
+          -DLLVM_TARGETS_TO_BUILD=X86 `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DLLVM_USE_CRT_RELEASE=MT `
+          -DLLVM_BUILD_STATIC=ON `
+          -DLLVM_LINK_LLVM_DYLIB=OFF `
           -DBUILD_SHARED_LIBS=OFF
         ninja llvm-nm
+      shell: pwsh
 
     - name: Verify static linking
       run: |
         echo "Checking dependencies of llvm-nm.exe:"
         dumpbin /dependents build\bin\llvm-nm.exe
+      shell: cmd
 
     - name: Prepare artifact
       run: |
         mkdir llvm-nm-windows-${{ matrix.arch }}
         copy build\bin\llvm-nm.exe llvm-nm-windows-${{ matrix.arch }}\
+      shell: cmd
 
     - name: Archive
       run: |
         Compress-Archive -Path llvm-nm-windows-${{ matrix.arch }}\* -DestinationPath llvm-nm-windows-${{ matrix.arch }}.zip
+      shell: pwsh
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
