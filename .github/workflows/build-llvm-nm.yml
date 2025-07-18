@@ -11,6 +11,9 @@ on:
         required: false
         default: 'nightly'
 
+permissions:
+  contents: write
+
 jobs:
   build-macos:
     runs-on: macos-latest
@@ -293,6 +296,9 @@ jobs:
     needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+      packages: write
     steps:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -305,11 +311,11 @@ jobs:
         find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
         name: LLVM-NM Prebuilt Binaries ${{ github.event.inputs.release_tag || github.ref_name }}
-        body: >-
+        body: |
           ## LLVM-NM Prebuilt Binaries
 
           适用于 macOS (arm64/x86_64)、Windows (x64/x86)、Linux (x86_64) 的预编译 llvm-nm 二进制包。
@@ -318,5 +324,4 @@ jobs:
         files: release-assets/*
         draft: false
         prerelease: ${{ github.event.inputs.release_tag == 'nightly' || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
