@@ -175,9 +175,10 @@ jobs:
 
     - name: Download LLVM source code
       run: |
-        curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
+        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz" -OutFile "llvm-project.tar.xz"
         tar -xf llvm-project.tar.xz
-        mv llvm-project-20.1.8.src llvm-project
+        Rename-Item "llvm-project-20.1.8.src" "llvm-project"
+      shell: pwsh
 
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v1.3
