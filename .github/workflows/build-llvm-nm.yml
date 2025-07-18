@@ -219,9 +219,58 @@ jobs:
           Invoke-WebRequest -Uri $uri -OutFile $output -TimeoutSec 600
         }
         
-        # Extract the archive
-        tar -xf llvm-project.tar.xz
-        Rename-Item "llvm-project-20.1.8.src" "llvm-project"
+        # Check if file exists and show size
+        if (Test-Path $output) {
+          $fileSize = (Get-Item $output).Length / 1MB
+          Write-Host "Downloaded file size: $([math]::Round($fileSize, 2)) MB"
+        } else {
+          throw "Download failed - file not found"
+        }
+        
+        # Extract the archive with verbose output and timeout
+        Write-Host "Starting extraction..."
+        $extractJob = Start-Job -ScriptBlock {
+          param($filePath)
+          Set-Location $using:PWD
+          tar -xvf $filePath
+        } -ArgumentList $output
+        
+        # Wait for extraction with timeout (10 minutes)
+        $timeout = 600
+        $completed = Wait-Job $extractJob -Timeout $timeout
+        
+        if ($completed) {
+          Receive-Job $extractJob
+          Write-Host "Extraction completed"
+        } else {
+          Write-Host "Extraction timed out after $timeout seconds"
+          Stop-Job $extractJob
+          Remove-Job $extractJob
+          throw "Extraction timeout"
+        }
+        
+        Remove-Job $extractJob
+        
+        # Check if extraction was successful
+        if (Test-Path "llvm-project-20.1.8.src") {
+          Write-Host "Extraction successful, renaming directory..."
+          Rename-Item "llvm-project-20.1.8.src" "llvm-project"
+          Write-Host "Directory renamed successfully"
+        } else {
+          Write-Host "Extraction failed - source directory not found"
+          Write-Host "Current directory contents:"
+          Get-ChildItem | Format-Table Name, Length
+          throw "Extraction failed"
+        }
+        
+        # Verify final result
+        if (Test-Path "llvm-project") {
+          Write-Host "LLVM source setup completed successfully"
+          Write-Host "LLVM project directory contents:"
+          Get-ChildItem llvm-project | Select-Object -First 10 | Format-Table Name
+        } else {
+          throw "Final verification failed - llvm-project directory not found"
+        }
       shell: pwsh
 
     - name: Setup MSVC
