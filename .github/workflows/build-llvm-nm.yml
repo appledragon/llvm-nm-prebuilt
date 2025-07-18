@@ -23,19 +23,14 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Cache LLVM source
-      uses: actions/cache@v4
-      id: cache-llvm
-      with:
-        path: llvm-project
-        key: llvm-20.1.8-src
-
-    - name: Download LLVM source code
-      if: steps.cache-llvm.outputs.cache-hit != 'true'
+    - name: Clone LLVM repository at specific tag
       run: |
-        curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
-        tar -xf llvm-project.tar.xz
-        mv llvm-project-20.1.8.src llvm-project
+        git clone --depth 1 --branch llvmorg-20.1.8 https://github.com/llvm/llvm-project.git
+        if [ ! -d "llvm-project/llvm" ]; then
+          echo "Clone failed - llvm subdirectory not found"
+          ls -la llvm-project
+          exit 1
+        fi
 
     - name: Install Homebrew and dependencies (x86_64)
       if: matrix.arch == 'x86_64'
@@ -135,19 +130,14 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Cache LLVM source
-      uses: actions/cache@v4
-      id: cache-llvm
-      with:
-        path: llvm-project
-        key: llvm-20.1.8-src
-
-    - name: Download LLVM source code
-      if: steps.cache-llvm.outputs.cache-hit != 'true'
+    - name: Clone LLVM repository at specific tag
       run: |
-        curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
-        tar -xf llvm-project.tar.xz
-        mv llvm-project-20.1.8.src llvm-project
+        git clone --depth 1 --branch llvmorg-20.1.8 https://github.com/llvm/llvm-project.git
+        if [ ! -d "llvm-project/llvm" ]; then
+          echo "Clone failed - llvm subdirectory not found"
+          ls -la llvm-project
+          exit 1
+        fi
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y cmake ninja-build build-essential libzstd-dev
@@ -189,89 +179,21 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Cache LLVM source
-      uses: actions/cache@v4
-      id: cache-llvm
-      with:
-        path: llvm-project
-        key: llvm-20.1.8-src
-
-    - name: Download LLVM source code
-      if: steps.cache-llvm.outputs.cache-hit != 'true'
+    - name: Clone LLVM repository at specific tag
       run: |
-        # Try multiple download methods for better reliability
-        $uri = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz"
-        $output = "llvm-project.tar.xz"
+        Write-Host "Cloning LLVM repository at tag llvmorg-20.1.8..."
+        git clone --depth 1 --branch llvmorg-20.1.8 https://github.com/llvm/llvm-project.git
         
-        # Method 1: Try curl first (often faster on Windows runners)
-        try {
-          Write-Host "Trying curl download..."
-          curl.exe -L -o $output $uri --connect-timeout 30 --max-time 600
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Curl download successful"
-          } else {
-            throw "Curl failed"
-          }
-        } catch {
-          Write-Host "Curl failed, trying Invoke-WebRequest..."
-          # Method 2: Fallback to Invoke-WebRequest with optimized settings
-          $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri $uri -OutFile $output -TimeoutSec 600
-        }
-        
-        # Check if file exists and show size
-        if (Test-Path $output) {
-          $fileSize = (Get-Item $output).Length / 1MB
-          Write-Host "Downloaded file size: $([math]::Round($fileSize, 2)) MB"
-        } else {
-          throw "Download failed - file not found"
-        }
-        
-        # Extract the archive with simple method
-        Write-Host "Starting extraction..."
-        try {
-          # Try using Windows built-in tar first
-          Write-Host "Using tar command..."
-          & tar -xf $output
-          Write-Host "Tar extraction completed"
-        } catch {
-          Write-Host "Tar failed, trying alternative extraction..."
-          # Fallback: try using 7zip if available
-          if (Get-Command 7z -ErrorAction SilentlyContinue) {
-            Write-Host "Using 7zip..."
-            & 7z x $output
-            & 7z x "llvm-project.tar"
-          } else {
-            throw "No suitable extraction tool found"
-          }
-        }
-        
-        # Check if extraction was successful
-        Write-Host "Checking extraction result..."
-        if (Test-Path "llvm-project-20.1.8.src") {
-          Write-Host "Extraction successful, renaming directory..."
-          if (Test-Path "llvm-project") {
-            Remove-Item "llvm-project" -Recurse -Force
-          }
-          Rename-Item "llvm-project-20.1.8.src" "llvm-project"
-          Write-Host "Directory renamed successfully"
-        } else {
-          Write-Host "Extraction failed - source directory not found"
-          Write-Host "Available files and directories:"
-          Get-ChildItem | Format-Table Name, Length -AutoSize
-          throw "Extraction failed"
-        }
-        
-        # Verify final result
+        # Verify the clone was successful
         if (Test-Path "llvm-project\llvm") {
-          Write-Host "LLVM source setup completed successfully"
+          Write-Host "LLVM repository cloned successfully"
+          Get-ChildItem llvm-project -Directory | Select-Object -First 3 | ForEach-Object { $_.Name }
         } else {
-          Write-Host "Final verification failed - llvm subdirectory not found"
+          Write-Host "Clone failed - llvm subdirectory not found"
           if (Test-Path "llvm-project") {
-            Write-Host "llvm-project directory exists but llvm subdirectory missing"
-            Get-ChildItem llvm-project | Select-Object -First 5 | Format-Table Name -AutoSize
+            Get-ChildItem llvm-project | Select-Object -First 5 | Format-Table Name
           }
-          throw "Final verification failed"
+          throw "Clone failed"
         }
       shell: pwsh
 
