@@ -89,7 +89,10 @@ jobs:
           -DCMAKE_EXE_LINKER_FLAGS="-arch x86_64" \
           -DLLVM_ENABLE_ZSTD=OFF \
           -DLLVM_ENABLE_ZLIB=OFF \
-          -DLLVM_ENABLE_LIBXML2=OFF
+          -DLLVM_ENABLE_LIBXML2=OFF \
+          -DLLVM_BUILD_STATIC=ON \
+          -DLLVM_LINK_LLVM_DYLIB=OFF \
+          -DBUILD_SHARED_LIBS=OFF
         arch -x86_64 /usr/local/bin/ninja llvm-nm
 
     - name: Configure and build llvm-nm (arm64)
@@ -104,8 +107,27 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_OSX_ARCHITECTURES=arm64 \
           -DCMAKE_PREFIX_PATH="/opt/homebrew" \
-          -DZSTD_ROOT="/opt/homebrew"
+          -DZSTD_ROOT="/opt/homebrew" \
+          -DLLVM_BUILD_STATIC=ON \
+          -DLLVM_LINK_LLVM_DYLIB=OFF \
+          -DBUILD_SHARED_LIBS=OFF
         ninja llvm-nm
+
+    - name: Verify binary
+      run: |
+        echo "Verifying llvm-nm binary for macOS-${{ matrix.arch }}..."
+        
+        # Check file type
+        file build/bin/llvm-nm
+        
+        # Check library dependencies (shared libraries)
+        otool -L build/bin/llvm-nm
+        
+        # For arm64, check if it's properly built for Apple Silicon
+        if [ "${{ matrix.arch }}" == "arm64" ]; then
+          echo "Checking architecture details:"
+          lipo -info build/bin/llvm-nm
+        fi
 
     - name: Prepare artifact
       run: |
@@ -150,8 +172,34 @@ jobs:
           -DLLVM_ENABLE_PROJECTS=llvm \
           -DLLVM_TOOL_LLVM_NM_BUILD=ON \
           -DLLVM_TARGETS_TO_BUILD="X86" \
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_BUILD_STATIC=ON \
+          -DLLVM_LINK_LLVM_DYLIB=OFF \
+          -DBUILD_SHARED_LIBS=OFF
         ninja llvm-nm
+
+    - name: Verify binary
+      run: |
+        echo "Verifying llvm-nm binary for Linux-x86_64..."
+        
+        # Check file type
+        file build/bin/llvm-nm
+        
+        # Check for shared library dependencies
+        echo "Dynamic dependencies:"
+        ldd build/bin/llvm-nm
+        
+        # Check ELF details
+        echo "ELF header information:"
+        readelf -h build/bin/llvm-nm | head -n 20
+        
+        # Check if static or dynamic linked (look for dynamic section)
+        echo "Checking if statically linked:"
+        if readelf -d build/bin/llvm-nm | grep -q "NEEDED"; then
+          echo "Dynamically linked - found NEEDED entries"
+        else
+          echo "Likely statically linked - no NEEDED entries"
+        fi
 
     - name: Prepare artifact
       run: |
@@ -222,8 +270,61 @@ jobs:
     - name: Verify static linking
       run: |
         echo "Checking dependencies of llvm-nm.exe:"
-        dumpbin /dependents build\bin\llvm-nm.exe
-      shell: cmd
+        # Setup MSVC environment variables for dumpbin
+        $vsInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+        if ($vsInstallPath) {
+          Write-Host "Visual Studio found at: $vsInstallPath"
+          $vcvarsPath = Join-Path $vsInstallPath "VC\Auxiliary\Build\vcvars64.bat"
+          if (Test-Path $vcvarsPath) {
+            Write-Host "Using vcvars64.bat at: $vcvarsPath"
+            cmd /c "call `"$vcvarsPath`" && dumpbin /dependents build\bin\llvm-nm.exe"
+          } else {
+            Write-Host "vcvars64.bat not found"
+            # Just display file info
+            Get-Item build\bin\llvm-nm.exe | Format-List Name, Length, LastWriteTime
+          }
+        } else {
+          Write-Host "Visual Studio not found, skipping dumpbin"
+          # Try alternative way to check PE imports
+          Write-Host "Using alternative method to check binary dependencies:"
+          
+          # Define a PowerShell function to check PE imports
+          function Get-PEImports {
+            param([string]$FilePath)
+            
+            try {
+              $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+              
+              # Check if it's a valid PE file
+              if ($bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A) {
+                Write-Host "$FilePath is a valid PE executable"
+                
+                # Simple check for DLL dependencies - looking for strings
+                $content = [System.Text.Encoding]::ASCII.GetString($bytes)
+                $dlls = @("KERNEL32.dll", "USER32.dll", "GDI32.dll", "ADVAPI32.dll", 
+                         "msvcrt.dll", "SHELL32.dll", "ole32.dll", "OLEAUT32.dll")
+                
+                Write-Host "Possible DLL dependencies:"
+                foreach ($dll in $dlls) {
+                  if ($content -match $dll) {
+                    Write-Host " - $dll detected"
+                  }
+                }
+              } else {
+                Write-Host "$FilePath is not a valid PE executable"
+              }
+            } catch {
+              Write-Host "Error analyzing file: $_"
+            }
+          }
+          
+          # Run the function
+          Get-PEImports "build\bin\llvm-nm.exe"
+          
+          # Also display file info
+          Get-Item build\bin\llvm-nm.exe | Format-List Name, Length, LastWriteTime
+        }
+      shell: pwsh
 
     - name: Prepare artifact
       run: |
