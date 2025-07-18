@@ -23,7 +23,15 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Cache LLVM source
+      uses: actions/cache@v4
+      id: cache-llvm
+      with:
+        path: llvm-project
+        key: llvm-20.1.8-src
+
     - name: Download LLVM source code
+      if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
         curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
         tar -xf llvm-project.tar.xz
@@ -127,7 +135,15 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Cache LLVM source
+      uses: actions/cache@v4
+      id: cache-llvm
+      with:
+        path: llvm-project
+        key: llvm-20.1.8-src
+
     - name: Download LLVM source code
+      if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
         curl -L -o llvm-project.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
         tar -xf llvm-project.tar.xz
@@ -173,9 +189,37 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Cache LLVM source
+      uses: actions/cache@v4
+      id: cache-llvm
+      with:
+        path: llvm-project
+        key: llvm-20.1.8-src
+
     - name: Download LLVM source code
+      if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
-        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz" -OutFile "llvm-project.tar.xz"
+        # Try multiple download methods for better reliability
+        $uri = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz"
+        $output = "llvm-project.tar.xz"
+        
+        # Method 1: Try curl first (often faster on Windows runners)
+        try {
+          Write-Host "Trying curl download..."
+          curl.exe -L -o $output $uri --connect-timeout 30 --max-time 600
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Curl download successful"
+          } else {
+            throw "Curl failed"
+          }
+        } catch {
+          Write-Host "Curl failed, trying Invoke-WebRequest..."
+          # Method 2: Fallback to Invoke-WebRequest with optimized settings
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri $uri -OutFile $output -TimeoutSec 600
+        }
+        
+        # Extract the archive
         tar -xf llvm-project.tar.xz
         Rename-Item "llvm-project-20.1.8.src" "llvm-project"
       shell: pwsh
